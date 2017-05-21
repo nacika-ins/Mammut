@@ -464,7 +464,6 @@ impl Mastodon {
                                         let status_opt: json::Result<Status> = json::from_str(&event.payload);
                                         match status_opt {
                                             Ok(status) => {
-                                                println!("status: {:?}", status);
                                                 let _ = status_tx_1.send(status);
                                             }
                                             Err(e) => {
@@ -476,7 +475,6 @@ impl Mastodon {
                                         let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
                                         match notification_opt {
                                             Ok(notification) => {
-                                                println!("notification: {:?}", notification);
                                                 let _ = notification_tx_1.send(notification);
                                             }
                                             Err(e) => {
