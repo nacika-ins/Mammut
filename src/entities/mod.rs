@@ -8,6 +8,7 @@ pub mod relationship;
 pub mod report;
 pub mod search_result;
 pub mod status;
+pub mod ws;
 
 /// An empty JSON object.
 #[derive(Deserialize)]
@@ -25,4 +26,5 @@ pub mod prelude {
     pub use super::report::Report;
     pub use super::search_result::SearchResult;
     pub use super::status::{Status, Application};
+    pub use super::ws::Event;
 }

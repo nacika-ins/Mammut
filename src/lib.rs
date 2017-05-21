@@ -39,6 +39,22 @@
 extern crate chrono;
 extern crate reqwest;
 extern crate serde;
+extern crate url;
+use std::borrow::Cow;
+use std::str;
+use std::str::Utf8Error;
+
+extern crate websocket;
+use std::thread;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender;
+use std::sync::mpsc::Receiver;
+use std::io::stdin;
+use websocket::Message;
+use websocket::message::Type;
+use websocket::client::ClientBuilder;
+extern crate crossbeam;
+
 
 /// Registering your App
 pub mod apps;
@@ -382,6 +398,91 @@ impl Mastodon {
         s += url;
         s
     }
+
+    pub fn get_user_streaming<'a>(&self) -> Receiver<Status> {
+
+        let domain = url::Url::parse(&self.data.base).unwrap();
+        let url = format!("wss://{}/api/v1/streaming/?access_token={}&stream=user", domain.host_str().unwrap(), self.data.token);
+        println!("start connection {}", url);
+
+        let mut headers = Headers::new();
+        headers.set(Authorization(format!("Bearer {}", self.data.token)));
+
+        let mut client = ClientBuilder::new(&url)
+            .unwrap()
+            .add_protocol("rust-websocket")
+            .custom_headers(&headers)
+            .connect_secure(None)
+            .unwrap();
+
+        let (tx, rx) = channel();
+        let tx_1 = tx.clone();
+
+        crossbeam::scope(|scope| {
+            scope.spawn(move || {
+                for message in client.incoming_messages() {
+                    let message: Message = match message {
+                        Ok(m) => m,
+                        Err(e) => {
+                            return;
+                        }
+                    };
+                    match message.opcode {
+                        Type::Close => {
+                            return;
+                        }
+                        Type::Ping => {
+                        }
+                        Type::Text => {
+
+                            let text_opt: Option<String> = match message.payload {
+                                Cow::Borrowed(bytes) => {
+                                    match str::from_utf8(bytes) {
+                                        Ok(s) => Some(s.into()),
+                                        Err(e) => None,
+                                    }
+                                }
+                                Cow::Owned(bytes) => {
+                                    match str::from_utf8(&bytes) {
+                                        Ok(s) => Some(s.into()),
+                                        Err(e) => None,
+                                    }
+                                }
+                            };
+
+                            match text_opt {
+                                Some(text) => {
+                                    let ws_event_opt: json::Result<Event> = json::from_str(&text);
+                                    match ws_event_opt {
+                                        Ok(event) => {
+                                            let event: Event = event;
+                                            let status_opt: json::Result<Status> = json::from_str(&event.payload);
+                                            match status_opt {
+                                                Ok(status) => {
+                                                    let _ = tx_1.send(status);
+                                                }
+                                                Err(e) => {
+                                                    println!("error: status parse error => {}", e);
+                                                }
+                                            };
+                                        }
+                                        Err(e) => {
+                                            println!("error: status parse error => {}", e);
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        _ => println!("Receive Loop: {:?}", message),
+                    }
+                }
+            });
+        });
+        rx
+    }
+
+
 }
 
 impl ops::Deref for Mastodon {
