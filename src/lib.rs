@@ -42,7 +42,6 @@ extern crate serde;
 extern crate url;
 use std::borrow::Cow;
 use std::str;
-use std::str::Utf8Error;
 
 extern crate websocket;
 use std::thread;
@@ -399,7 +398,7 @@ impl Mastodon {
         s
     }
 
-    pub fn get_user_streaming<'a>(&self) -> Receiver<Status> {
+    pub fn get_user_streaming<'a>(&self) -> (Receiver<Status>, Receiver<Notification>) {
 
         let domain = url::Url::parse(&self.data.base).unwrap();
         let url = format!("wss://{}/api/v1/streaming/?access_token={}&stream=user", domain.host_str().unwrap(), self.data.token);
@@ -415,8 +414,12 @@ impl Mastodon {
             .connect_secure(None)
             .unwrap();
 
-        let (tx, rx) = channel();
-        let tx_1 = tx.clone();
+
+        let (status_tx, status_rx) = channel();
+        let (notification_tx, notification_rx) = channel();
+
+        let status_tx_1 = status_tx.clone();
+        let notification_tx_1 = notification_tx.clone();
 
         crossbeam::scope(|scope| {
             scope.spawn(move || {
@@ -454,17 +457,31 @@ impl Mastodon {
                                 Some(text) => {
                                     let ws_event_opt: json::Result<Event> = json::from_str(&text);
                                     match ws_event_opt {
-                                        Ok(event) => {
-                                            let event: Event = event;
+                                        Ok(ref event) if event.event == "update" => {
                                             let status_opt: json::Result<Status> = json::from_str(&event.payload);
                                             match status_opt {
                                                 Ok(status) => {
-                                                    let _ = tx_1.send(status);
+                                                    let _ = status_tx_1.send(status);
                                                 }
                                                 Err(e) => {
                                                     println!("error: status parse error => {}", e);
                                                 }
                                             };
+                                        }
+                                        Ok(ref event) if event.event == "notification" => {
+                                            let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
+                                            match notification_opt {
+                                                Ok(notification) => {
+                                                    // println!("notification: {:?}", notification);
+                                                    let _ = notification_tx_1.send(notification);
+                                                }
+                                                Err(e) => {
+                                                    println!("error: notification parse error => {}", e);
+                                                }
+                                            };
+                                        }
+                                        Ok(_) => {
+                                            println!("error: unknown payload {:?}", ws_event_opt);
                                         }
                                         Err(e) => {
                                             println!("error: status parse error => {}", e);
@@ -479,7 +496,7 @@ impl Mastodon {
                 }
             });
         });
-        rx
+        (status_rx, notification_rx)
     }
 
 
