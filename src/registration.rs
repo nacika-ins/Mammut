@@ -127,6 +127,15 @@ impl Registration {
                                        token.access_token,
                                        self.client))
     }
+
+    pub fn set_access_token(self, access_token: String) -> Result<Mastodon> {
+        Ok(Mastodon::from_registration(self.base,
+                                       self.client_id.unwrap(),
+                                       self.client_secret.unwrap(),
+                                       self.redirect.unwrap(),
+                                       access_token,
+                                       self.client))
+    }
 }
 
 
