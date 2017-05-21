@@ -8,9 +8,9 @@ use apps::{AppBuilder, Scope};
 pub struct Registration {
     base: String,
     client: Client,
-    client_id: Option<String>,
-    client_secret: Option<String>,
-    redirect: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub redirect: Option<String>,
     scopes: Scope,
 }
 
