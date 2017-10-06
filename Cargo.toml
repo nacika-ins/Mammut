@@ -11,7 +11,7 @@ categories = ["web-programming", "http-client"]
 
 [dependencies]
 ws = { git = "https://github.com/housleyjk/ws-rs.git", version = "0.7.1" }
-websocket = { git = "https://github.com/cyderize/rust-websocket.git", version = "0.19.2" }
+websocket = { git = "https://github.com/cyderize/rust-websocket.git", version = "0.20.2" }
 url = "1.4.0"
 reqwest = "0.6"
 serde = "1"
