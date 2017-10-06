@@ -10,10 +10,6 @@ keywords = ["api", "web", "social", "mastodon", "wrapper"]
 categories = ["web-programming", "http-client"]
 
 [dependencies]
-reqwest = "0.5"
-serde = "0.9"
-serde_json = "0.9"
-serde_derive = "0.9"
 ws = { git = "https://github.com/housleyjk/ws-rs.git", version = "0.7.1" }
 websocket = { git = "https://github.com/cyderize/rust-websocket.git", version = "0.19.2" }
 url = "1.4.0"
