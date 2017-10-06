@@ -5,9 +5,9 @@ use super::status::Status;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Notification {
     pub id: u64,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     pub notification_type: NotificationType,
-    pub created_at: DateTime<UTC>,
+    pub created_at: DateTime<Utc>,
     pub account: Account,
     pub status: Option<Status>,
 }
