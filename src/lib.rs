@@ -421,18 +421,18 @@ impl Mastodon {
         let status_tx_1 = status_tx.clone();
         let notification_tx_1 = notification_tx.clone();
 
-        thread::spawn(move || {
+        thread::spawn(move || loop {
             for message in client.incoming_messages() {
                 let message_opt: Option<OwnedMessage> = match message {
                     Ok(m) => Some(m),
                     Err(e) => {
                         println!("error: {:?}", e);
-                        None
+                        break;
                     }
                 };
                 match message_opt {
                     Some(OwnedMessage::Close(_)) => {
-                        return;
+                        break;
                     }
                     Some(OwnedMessage::Ping(_)) => {}
                     Some(OwnedMessage::Text(text)) => {
@@ -461,7 +461,10 @@ impl Mastodon {
                                                 let _ = notification_tx_1.send(notification);
                                             }
                                             Err(e) => {
-                                                println!("error: notification parse error => {}", e);
+                                                println!(
+                                                    "error: notification parse error => {}",
+                                                    e
+                                                );
                                             }
                                         };
                                     }
@@ -476,10 +479,10 @@ impl Mastodon {
                             _ => {}
                         }
                     }
-                    None => {},
+                    None => {}
                     _ => println!("Receive Loop: {:?}", message_opt),
                 };
-            };
+            }
             println!("break out incoming messages loop");
         });
 
