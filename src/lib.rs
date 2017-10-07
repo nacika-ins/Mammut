@@ -43,6 +43,8 @@ extern crate serde_derive;
 extern crate serde_json as json;
 extern crate chrono;
 extern crate reqwest;
+
+
 extern crate serde;
 extern crate url;
 use std::str;
@@ -54,10 +56,11 @@ use std::sync::mpsc::Receiver;
 use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
 
-
-// #[macro_use] extern crate hyper;
+// #[macro_use]
+// extern crate hyper;
 // header! { (SecWebSocketVersion, "Sec-WebSocket-Version") => [String] }
 // header! { (SecWebSocketKey, "Sec-WebSocket-Key") => [String] }
+
 
 /// Registering your App
 pub mod apps;
@@ -420,8 +423,8 @@ impl Mastodon {
         headers.set(websocket::header::Authorization(
             format!("Bearer {}", self.data.token),
         ));
-        // headers.set(SecWebSocketKey("OzqJNi0KGlFSCqIyrScjnA==".to_owned()));
-        // headers.set(SecWebSocketVersion("13".to_owned()));
+        headers.set(websocket::header::WebSocketKey::new());
+        // headers.set(websocket::header::WebSocketVersion("13".to_owned()));
 
         let client = ClientBuilder::new(&url)
             .unwrap()
