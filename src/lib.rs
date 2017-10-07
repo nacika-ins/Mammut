@@ -50,7 +50,9 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
-
+#[macro_use]
+extern crate hyper;
+header! { (SecWebSocketVersion, "Sec-WebSocket-Version") => [String] }
 
 /// Registering your App
 pub mod apps;
@@ -405,6 +407,8 @@ impl Mastodon {
         println!("start connection {}", url);
 
         let mut headers = Headers::new();
+        headers.set(Authorization(format!("Bearer {}", self.data.token)));
+        headers.set(Authorization(format!("Bearer {}", self.data.token)));
         headers.set(Authorization(format!("Bearer {}", self.data.token)));
 
         let client = ClientBuilder::new(&url)
