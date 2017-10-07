@@ -53,6 +53,7 @@ use websocket::client::ClientBuilder;
 #[macro_use]
 extern crate hyper;
 header! { (SecWebSocketVersion, "Sec-WebSocket-Version") => [String] }
+header! { (SecWebSocketKey, "Sec-WebSocket-Key") => [String] }
 
 /// Registering your App
 pub mod apps;
@@ -408,8 +409,8 @@ impl Mastodon {
 
         let mut headers = Headers::new();
         headers.set(Authorization(format!("Bearer {}", self.data.token)));
-        headers.set(Authorization(format!("Bearer {}", self.data.token)));
-        headers.set(Authorization(format!("Bearer {}", self.data.token)));
+        headers.set(SecWebSocketKey("OzqJNi0KGlFSCqIyrScjnA==".to_owned()));
+        headers.set(SecWebSocketVersion("13".to_owned()));
 
         let client = ClientBuilder::new(&url)
             .unwrap()
