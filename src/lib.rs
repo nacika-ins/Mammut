@@ -476,6 +476,7 @@ impl Mastodon {
                             _ => {}
                         }
                     }
+                    None => {},
                     _ => println!("Receive Loop: {:?}", message_opt),
                 };
             };
