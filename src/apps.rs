@@ -12,7 +12,7 @@ pub struct AppBuilder<'a> {
     pub client_name: &'a str,
     pub redirect_uris: &'a str,
     pub scopes: Scope,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub website: Option<&'a str>,
 }
 
@@ -40,15 +40,19 @@ pub enum Scope {
 impl ::std::fmt::Display for Scope {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         use self::Scope::*;
-        write!(f, "{}", match *self {
-            All => "read write follow",
-            Follow => "follow",
-            Read => "read",
-            ReadFollow => "read follow",
-            ReadWrite => "read write",
-            Write => "write",
-            WriteFollow => "write follow"
-        })
+        write!(
+            f,
+            "{}",
+            match *self {
+                All => "read write follow",
+                Follow => "follow",
+                Read => "read",
+                ReadFollow => "read follow",
+                ReadWrite => "read write",
+                Write => "write",
+                WriteFollow => "write follow",
+            }
+        )
     }
 }
 

@@ -86,7 +86,8 @@ impl Registration {
     pub fn authorise(&mut self) -> Result<String> {
         self.is_registered()?;
 
-        let url = format!(
+        let url =
+            format!(
             "{}/oauth/authorize?client_id={}&redirect_uri={}&scope={}&response_type=code",
             self.base,
             self.client_id.clone().unwrap(),
@@ -120,22 +121,24 @@ impl Registration {
 
         let token: AccessToken = self.client.post(&url).send()?.json()?;
 
-        Ok(Mastodon::from_registration(self.base,
-                                       self.client_id.unwrap(),
-                                       self.client_secret.unwrap(),
-                                       self.redirect.unwrap(),
-                                       token.access_token,
-                                       self.client))
+        Ok(Mastodon::from_registration(
+            self.base,
+            self.client_id.unwrap(),
+            self.client_secret.unwrap(),
+            self.redirect.unwrap(),
+            token.access_token,
+            self.client,
+        ))
     }
 
     pub fn set_access_token(self, access_token: String) -> Result<Mastodon> {
-        Ok(Mastodon::from_registration(self.base,
-                                       self.client_id.unwrap(),
-                                       self.client_secret.unwrap(),
-                                       self.redirect.unwrap(),
-                                       access_token,
-                                       self.client))
+        Ok(Mastodon::from_registration(
+            self.base,
+            self.client_id.unwrap(),
+            self.client_secret.unwrap(),
+            self.redirect.unwrap(),
+            access_token,
+            self.client,
+        ))
     }
 }
-
-

@@ -34,21 +34,21 @@
 
 #![cfg_attr(test, deny(warnings))]
 
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate serde_json as json;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde_json as json;
 extern crate chrono;
 extern crate reqwest;
 extern crate serde;
 extern crate url;
-use std::borrow::Cow;
 use std::str;
 
 extern crate websocket;
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
-use websocket::Message;
-use websocket::message::Type;
+use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
 
 
@@ -176,7 +176,7 @@ pub struct Mastodon {
     client: Client,
     headers: Headers,
     /// Raw data about your mastodon instance.
-    pub data: Data
+    pub data: Data,
 }
 
 /// Raw data about mastodon app. Save `Data` using `serde` to prevent needing
@@ -218,32 +218,31 @@ pub struct ApiError {
 }
 
 impl Mastodon {
-    fn from_registration(base: String,
-                         client_id: String,
-                         client_secret: String,
-                         redirect: String,
-                         token: String,
-                         client: Client)
-        -> Self
-        {
-            let data = Data {
-                base: base,
-                client_id: client_id,
-                client_secret: client_secret,
-                redirect: redirect,
-                token: token,
+    fn from_registration(
+        base: String,
+        client_id: String,
+        client_secret: String,
+        redirect: String,
+        token: String,
+        client: Client,
+    ) -> Self {
+        let data = Data {
+            base: base,
+            client_id: client_id,
+            client_secret: client_secret,
+            redirect: redirect,
+            token: token,
+        };
 
-            };
+        let mut headers = Headers::new();
+        headers.set(Authorization(Bearer { token: data.token.clone() }));
 
-            let mut headers = Headers::new();
-            headers.set(Authorization(Bearer { token: data.token.clone() }));
-
-            Mastodon {
-                client: client,
-                headers: headers,
-                data: data,
-            }
+        Mastodon {
+            client: client,
+            headers: headers,
+            data: data,
         }
+    }
 
     /// Creates a mastodon instance from the data struct.
     pub fn from_data(data: Data) -> Result<Self> {
@@ -301,7 +300,8 @@ impl Mastodon {
     pub fn new_status(&self, status: StatusBuilder) -> Result<Status> {
         use std::io::Read;
 
-        let mut response = self.client.post(&self.route("/api/v1/statuses"))
+        let mut response = self.client
+            .post(&self.route("/api/v1/statuses"))
             .headers(self.headers.clone())
             .json(&status)
             .send()?;
@@ -337,27 +337,26 @@ impl Mastodon {
         self.get(url)
     }
 
-    pub fn statuses(&self, id: u64, only_media: bool, exclude_replies: bool)
-        -> Result<Vec<Status>>
-        {
-            let mut url = format!("{}/api/v1/accounts/{}/statuses", self.base, id);
+    pub fn statuses(
+        &self,
+        id: u64,
+        only_media: bool,
+        exclude_replies: bool,
+    ) -> Result<Vec<Status>> {
+        let mut url = format!("{}/api/v1/accounts/{}/statuses", self.base, id);
 
-            if only_media {
-                url += "?only_media=1";
-            }
-
-            if exclude_replies {
-                url += if only_media {
-                    "&"
-                } else {
-                    "?"
-                };
-
-                url += "exclude_replies=1";
-            }
-
-            self.get(url)
+        if only_media {
+            url += "?only_media=1";
         }
+
+        if exclude_replies {
+            url += if only_media { "&" } else { "?" };
+
+            url += "exclude_replies=1";
+        }
+
+        self.get(url)
+    }
 
 
     pub fn relationships(&self, ids: &[u64]) -> Result<Vec<Relationship>> {
@@ -398,7 +397,11 @@ impl Mastodon {
     pub fn get_user_streaming(&self) -> (Receiver<Status>, Receiver<Notification>) {
 
         let domain = url::Url::parse(&self.data.base).unwrap();
-        let url = format!("wss://{}/api/v1/streaming/?access_token={}&stream=user", domain.host_str().unwrap(), self.data.token);
+        let url = format!(
+            "wss://{}/api/v1/streaming/?access_token={}&stream=user",
+            domain.host_str().unwrap(),
+            self.data.token
+        );
         println!("start connection {}", url);
 
         let mut headers = Headers::new();
@@ -418,90 +421,66 @@ impl Mastodon {
         let status_tx_1 = status_tx.clone();
         let notification_tx_1 = notification_tx.clone();
 
-        thread::spawn(move || {
-            for message in client.incoming_messages() {
-                let message: Message = match message {
-                    Ok(m) => m,
-                    Err(e) => {
-                        println!("error: {:?}", e);
-                        return;
-                    }
-                };
-                match message.opcode {
-                    Type::Close => {
-                        return;
-                    }
-                    Type::Ping => {
-                    }
-                    Type::Text => {
-
-                        let text_opt: Option<String> = match message.payload {
-                            Cow::Borrowed(bytes) => {
-                                match str::from_utf8(bytes) {
-                                    Ok(s) => Some(s.into()),
-                                    Err(e) => {
-                                        println!("error: {:?}", e);
-                                        None
-                                    },
-                                }
-                            }
-                            Cow::Owned(bytes) => {
-                                match str::from_utf8(&bytes) {
-                                    Ok(s) => Some(s.into()),
-                                    Err(e) => {
-                                        println!("error: {:?}", e);
-                                        None
-                                    },
-                                }
-                            }
-                        };
-
-                        match text_opt {
-                            Some(text) => {
-                                let ws_event_opt: json::Result<Event> = json::from_str(&text);
-                                match ws_event_opt {
-                                    Ok(ref event) if event.event == "update" => {
-                                        let status_opt: json::Result<Status> = json::from_str(&event.payload);
-                                        match status_opt {
-                                            Ok(status) => {
-                                                let _ = status_tx_1.send(status);
-                                            }
-                                            Err(e) => {
-                                                println!("error: status parse error => {}", e);
-                                            }
-                                        };
-                                    }
-                                    Ok(ref event) if event.event == "notification" => {
-                                        let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
-                                        match notification_opt {
-                                            Ok(notification) => {
-                                                let _ = notification_tx_1.send(notification);
-                                            }
-                                            Err(e) => {
-                                                println!("error: notification parse error => {}", e);
-                                            }
-                                        };
-                                    }
-                                    Ok(_) => {
-                                        println!("error: unknown payload {:?}", ws_event_opt);
-                                    }
-                                    Err(e) => {
-                                        println!("error: status parse error => {}", e);
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => println!("Receive Loop: {:?}", message),
+        thread::spawn(move || for message in client.incoming_messages() {
+            let message: OwnedMessage = match message {
+                Ok(m) => m,
+                Err(e) => {
+                    println!("error: {:?}", e);
+                    return;
                 }
+            };
+            match message {
+                OwnedMessage::Close(_) => {
+                    return;
+                }
+                OwnedMessage::Ping(_) => {}
+                OwnedMessage::Text(text) => {
+
+                    let text_opt: Option<String> = Some(text);
+
+                    match text_opt {
+                        Some(text) => {
+                            let ws_event_opt: json::Result<Event> = json::from_str(&text);
+                            match ws_event_opt {
+                                Ok(ref event) if event.event == "update" => {
+                                    let status_opt: json::Result<Status> = json::from_str(&event.payload);
+                                    match status_opt {
+                                        Ok(status) => {
+                                            let _ = status_tx_1.send(status);
+                                        }
+                                        Err(e) => {
+                                            println!("error: status parse error => {}", e);
+                                        }
+                                    };
+                                }
+                                Ok(ref event) if event.event == "notification" => {
+                                    let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
+                                    match notification_opt {
+                                        Ok(notification) => {
+                                            let _ = notification_tx_1.send(notification);
+                                        }
+                                        Err(e) => {
+                                            println!("error: notification parse error => {}", e);
+                                        }
+                                    };
+                                }
+                                Ok(_) => {
+                                    println!("error: unknown payload {:?}", ws_event_opt);
+                                }
+                                Err(e) => {
+                                    println!("error: status parse error => {}", e);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => println!("Receive Loop: {:?}", message),
             }
         });
 
         (status_rx, notification_rx)
     }
-
-
 }
 
 impl ops::Deref for Mastodon {

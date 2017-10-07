@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, Deserialize)]
 pub struct Attachment {
     pub id: u64,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     pub media_type: MediaType,
     pub url: String,
     pub remote_url: String,

@@ -2,15 +2,15 @@
 pub struct StatusBuilder {
     pub status: String,
     /// User ids of those to reply to.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub in_reply_to_id: Option<u64>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub media_ids: Option<Vec<u64>>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sensitive: Option<bool>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub spoiler_text: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub visibility: Option<Visibility>,
 }
 
@@ -31,7 +31,6 @@ pub enum Visibility {
 }
 
 impl StatusBuilder {
-
     pub fn new(status: String) -> Self {
         StatusBuilder {
             status: status,
