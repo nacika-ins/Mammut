@@ -422,19 +422,19 @@ impl Mastodon {
         let notification_tx_1 = notification_tx.clone();
 
         thread::spawn(move || for message in client.incoming_messages() {
-            let message: OwnedMessage = match message {
-                Ok(m) => m,
+            let message_opt: Option<OwnedMessage> = match message {
+                Ok(m) => Some(m),
                 Err(e) => {
                     println!("error: {:?}", e);
-                    break;
+                    None
                 }
             };
-            match message {
-                OwnedMessage::Close(_) => {
+            match message_opt {
+                Some(OwnedMessage::Close(_)) => {
                     return;
                 }
-                OwnedMessage::Ping(_) => {}
-                OwnedMessage::Text(text) => {
+                Some(OwnedMessage::Ping(_)) => {}
+                Some(OwnedMessage::Text(text)) => {
 
                     let text_opt: Option<String> = Some(text);
 
@@ -475,8 +475,9 @@ impl Mastodon {
                         _ => {}
                     }
                 }
-                _ => println!("Receive Loop: {:?}", message),
-            }
+                _ => println!("Receive Loop: {:?}", message_opt),
+            };
+            println!("break out incoming messages loop");
         });
 
         (status_rx, notification_rx)
