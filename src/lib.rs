@@ -426,14 +426,16 @@ impl Mastodon {
         headers.set(websocket::header::WebSocketKey::new());
         // headers.set(websocket::header::WebSocketVersion("13".to_owned()));
 
-        let client = ClientBuilder::new(&url)
+        let mut client = ClientBuilder::new(&url)
             .unwrap()
             .add_protocol("rust-websocket")
             .custom_headers(&headers)
-            .connect_insecure()
+            .connect_secure(None)
             .unwrap();
 
-        let (mut receiver, mut sender) = client.split().unwrap();
+        // let (mut receiver, mut sender) = client.split().unwrap();
+
+
 
         let (status_tx, status_rx) = channel();
         let (notification_tx, notification_rx) = channel();
@@ -442,7 +444,7 @@ impl Mastodon {
         let notification_tx_1 = notification_tx.clone();
 
         thread::spawn(move || {
-            for message in receiver.incoming_messages() {
+            for message in client.incoming_messages() {
                 let message_opt: Option<OwnedMessage> = match message {
                     Ok(m) => Some(m),
                     Err(e) => {
@@ -454,9 +456,9 @@ impl Mastodon {
                     Some(OwnedMessage::Close(_)) => {
                         break;
                     }
-                    Some(OwnedMessage::Ping(data)) => {
-                        let message = OwnedMessage::Pong(data);
-                        sender.send_message(&message).unwrap();
+                    Some(OwnedMessage::Ping(_)) => {
+                        //let message = OwnedMessage::Pong(data);
+                        // client.send_message(&message).unwrap();
                     }
                     Some(OwnedMessage::Text(text)) => {
 
