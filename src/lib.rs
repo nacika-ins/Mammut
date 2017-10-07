@@ -421,61 +421,63 @@ impl Mastodon {
         let status_tx_1 = status_tx.clone();
         let notification_tx_1 = notification_tx.clone();
 
-        thread::spawn(move || for message in client.incoming_messages() {
-            let message_opt: Option<OwnedMessage> = match message {
-                Ok(m) => Some(m),
-                Err(e) => {
-                    println!("error: {:?}", e);
-                    None
-                }
-            };
-            match message_opt {
-                Some(OwnedMessage::Close(_)) => {
-                    return;
-                }
-                Some(OwnedMessage::Ping(_)) => {}
-                Some(OwnedMessage::Text(text)) => {
+        thread::spawn(move || {
+            for message in client.incoming_messages() {
+                let message_opt: Option<OwnedMessage> = match message {
+                    Ok(m) => Some(m),
+                    Err(e) => {
+                        println!("error: {:?}", e);
+                        None
+                    }
+                };
+                match message_opt {
+                    Some(OwnedMessage::Close(_)) => {
+                        return;
+                    }
+                    Some(OwnedMessage::Ping(_)) => {}
+                    Some(OwnedMessage::Text(text)) => {
 
-                    let text_opt: Option<String> = Some(text);
+                        let text_opt: Option<String> = Some(text);
 
-                    match text_opt {
-                        Some(text) => {
-                            let ws_event_opt: json::Result<Event> = json::from_str(&text);
-                            match ws_event_opt {
-                                Ok(ref event) if event.event == "update" => {
-                                    let status_opt: json::Result<Status> = json::from_str(&event.payload);
-                                    match status_opt {
-                                        Ok(status) => {
-                                            let _ = status_tx_1.send(status);
-                                        }
-                                        Err(e) => {
-                                            println!("error: status parse error => {}", e);
-                                        }
-                                    };
-                                }
-                                Ok(ref event) if event.event == "notification" => {
-                                    let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
-                                    match notification_opt {
-                                        Ok(notification) => {
-                                            let _ = notification_tx_1.send(notification);
-                                        }
-                                        Err(e) => {
-                                            println!("error: notification parse error => {}", e);
-                                        }
-                                    };
-                                }
-                                Ok(_) => {
-                                    println!("error: unknown payload {:?}", ws_event_opt);
-                                }
-                                Err(e) => {
-                                    println!("error: status parse error => {}", e);
+                        match text_opt {
+                            Some(text) => {
+                                let ws_event_opt: json::Result<Event> = json::from_str(&text);
+                                match ws_event_opt {
+                                    Ok(ref event) if event.event == "update" => {
+                                        let status_opt: json::Result<Status> = json::from_str(&event.payload);
+                                        match status_opt {
+                                            Ok(status) => {
+                                                let _ = status_tx_1.send(status);
+                                            }
+                                            Err(e) => {
+                                                println!("error: status parse error => {}", e);
+                                            }
+                                        };
+                                    }
+                                    Ok(ref event) if event.event == "notification" => {
+                                        let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
+                                        match notification_opt {
+                                            Ok(notification) => {
+                                                let _ = notification_tx_1.send(notification);
+                                            }
+                                            Err(e) => {
+                                                println!("error: notification parse error => {}", e);
+                                            }
+                                        };
+                                    }
+                                    Ok(_) => {
+                                        println!("error: unknown payload {:?}", ws_event_opt);
+                                    }
+                                    Err(e) => {
+                                        println!("error: status parse error => {}", e);
+                                    }
                                 }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
-                }
-                _ => println!("Receive Loop: {:?}", message_opt),
+                    _ => println!("Receive Loop: {:?}", message_opt),
+                };
             };
             println!("break out incoming messages loop");
         });
