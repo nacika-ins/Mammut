@@ -426,7 +426,6 @@ impl Mastodon {
                 Ok(m) => m,
                 Err(e) => {
                     println!("error: {:?}", e);
-                    return;
                 }
             };
             match message {
