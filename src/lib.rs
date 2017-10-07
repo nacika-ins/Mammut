@@ -404,19 +404,17 @@ impl Mastodon {
         );
         println!("start connection {}", url);
 
-        // let mut headers = Headers::new();
-        // headers.set(Authorization(format!("Bearer {}", self.data.token)));
+        let mut headers = Headers::new();
+        headers.set(Authorization(format!("Bearer {}", self.data.token)));
 
         let client = ClientBuilder::new(&url)
             .unwrap()
             .add_protocol("rust-websocket")
-            // .custom_headers(&headers)
+            .custom_headers(&headers)
             .connect_insecure()
             .unwrap();
 
         let (mut receiver, mut sender) = client.split().unwrap();
-
-
 
         let (status_tx, status_rx) = channel();
         let (notification_tx, notification_rx) = channel();
