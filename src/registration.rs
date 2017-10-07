@@ -30,7 +30,7 @@ impl Registration {
     pub fn new<I: Into<String>>(base: I) -> Result<Self> {
         Ok(Registration {
             base: base.into(),
-            client: Client::new()?,
+            client: Client::new(),
             client_id: None,
             client_secret: None,
             redirect: None,

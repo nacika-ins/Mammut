@@ -34,6 +34,9 @@
 
 #![cfg_attr(test, deny(warnings))]
 
+
+
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
@@ -50,10 +53,11 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
-#[macro_use]
-extern crate hyper;
-header! { (SecWebSocketVersion, "Sec-WebSocket-Version") => [String] }
-header! { (SecWebSocketKey, "Sec-WebSocket-Key") => [String] }
+
+
+// #[macro_use] extern crate hyper;
+// header! { (SecWebSocketVersion, "Sec-WebSocket-Version") => [String] }
+// header! { (SecWebSocketKey, "Sec-WebSocket-Key") => [String] }
 
 /// Registering your App
 pub mod apps;
@@ -70,7 +74,8 @@ use std::io::Error as IoError;
 use json::Error as SerdeError;
 use reqwest::Error as HttpError;
 use reqwest::Client;
-use reqwest::header::{Authorization, Bearer, Headers};
+use reqwest::header::{Bearer, Headers};
+
 
 use entities::prelude::*;
 pub use status_builder::StatusBuilder;
@@ -237,8 +242,10 @@ impl Mastodon {
             token: token,
         };
 
-        let mut headers = Headers::new();
-        headers.set(Authorization(Bearer { token: data.token.clone() }));
+        let mut headers = reqwest::header::Headers::new();
+        headers.set(reqwest::header::Authorization(
+            Bearer { token: data.token.clone() },
+        ));
 
         Mastodon {
             client: client,
@@ -249,11 +256,13 @@ impl Mastodon {
 
     /// Creates a mastodon instance from the data struct.
     pub fn from_data(data: Data) -> Result<Self> {
-        let mut headers = Headers::new();
-        headers.set(Authorization(Bearer { token: data.token.clone() }));
+        let mut headers = reqwest::header::Headers::new();
+        headers.set(reqwest::header::Authorization(
+            Bearer { token: data.token.clone() },
+        ));
 
         Ok(Mastodon {
-            client: Client::new()?,
+            client: Client::new(),
             headers: headers,
             data: data,
         })
@@ -407,10 +416,12 @@ impl Mastodon {
         );
         println!("start connection {}", url);
 
-        let mut headers = Headers::new();
-        headers.set(Authorization(format!("Bearer {}", self.data.token)));
-        headers.set(SecWebSocketKey("OzqJNi0KGlFSCqIyrScjnA==".to_owned()));
-        headers.set(SecWebSocketVersion("13".to_owned()));
+        let mut headers = websocket::header::Headers::new();
+        headers.set(websocket::header::Authorization(
+            format!("Bearer {}", self.data.token),
+        ));
+        // headers.set(SecWebSocketKey("OzqJNi0KGlFSCqIyrScjnA==".to_owned()));
+        // headers.set(SecWebSocketVersion("13".to_owned()));
 
         let client = ClientBuilder::new(&url)
             .unwrap()
