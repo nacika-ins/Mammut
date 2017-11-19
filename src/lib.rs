@@ -409,12 +409,13 @@ impl Mastodon {
         s
     }
 
+    // streaming user timeline
     pub fn get_user_streaming(&self) -> (Receiver<Status>, Receiver<Notification>) {
 
-        let domain = url::Url::parse(&self.data.base).unwrap();
+        let domain = url::Url::parse(&self.data.base).expect("url");
         let url = format!(
             "wss://{}/api/v1/streaming/?access_token={}&stream=user",
-            domain.host_str().unwrap(),
+            domain.host_str().expect("host"),
             self.data.token
         );
         println!("start connection {}", url);
@@ -427,11 +428,11 @@ impl Mastodon {
         // headers.set(websocket::header::WebSocketVersion("13".to_owned()));
 
         let mut client = ClientBuilder::new(&url)
-            .unwrap()
+            .expect("client")
             .add_protocol("rust-websocket")
             .custom_headers(&headers)
             .connect_secure(None)
-            .unwrap();
+            .expect("rust-websocket");
 
         // let (mut receiver, mut sender) = client.split().unwrap();
 
