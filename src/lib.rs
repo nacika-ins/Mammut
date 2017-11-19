@@ -358,7 +358,6 @@ impl Mastodon {
                 data: data,
             }
         }
-    }
 
     /// Creates a mastodon instance from the data struct.
     pub fn from_data(data: Data) -> Self {
@@ -522,7 +521,7 @@ impl Mastodon {
         s
     }
 
-    // streaming user timeline
+    /// streaming user timeline
     pub fn get_user_streaming(&self) -> (Receiver<Status>, Receiver<Notification>) {
 
         let domain = url::Url::parse(&self.data.base).expect("url");
@@ -558,7 +557,11 @@ impl Mastodon {
         let notification_tx_1 = notification_tx.clone();
 
         thread::spawn(move || {
-            for message in client.incoming_messages() {
+
+            loop {
+
+                let message  = client.incoming_messages().next().expect("next");
+
                 let message_opt: Option<OwnedMessage> = match message {
                     Ok(m) => Some(m),
                     Err(e) => {
@@ -566,13 +569,15 @@ impl Mastodon {
                         break;
                     }
                 };
+
                 match message_opt {
                     Some(OwnedMessage::Close(_)) => {
                         break;
                     }
-                    Some(OwnedMessage::Ping(_)) => {
-                        //let message = OwnedMessage::Pong(data);
-                        // client.send_message(&message).unwrap();
+                    Some(OwnedMessage::Ping(data)) => {
+                        println!("ping: {:?}", data);
+                        let message = OwnedMessage::Pong(data);
+                        client.send_message(&message).unwrap();
                     }
                     Some(OwnedMessage::Text(text)) => {
 
@@ -580,9 +585,15 @@ impl Mastodon {
 
                         match text_opt {
                             Some(text) => {
+
+                                println!("text => {}", text);
+
                                 let ws_event_opt: json::Result<Event> = json::from_str(&text);
                                 match ws_event_opt {
                                     Ok(ref event) if event.event == "update" => {
+
+                                        println!("payload => {}", event.payload);
+
                                         let status_opt: json::Result<Status> = json::from_str(&event.payload);
                                         match status_opt {
                                             Ok(status) => {
@@ -627,6 +638,8 @@ impl Mastodon {
 
         (status_rx, notification_rx)
     }
+
+
 }
 
 impl ops::Deref for Mastodon {

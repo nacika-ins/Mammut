@@ -5,7 +5,7 @@ pub struct StatusBuilder {
     pub status: String,
     /// Ids of accounts being replied to.
     #[serde(skip_serializing_if="Option::is_none")]
-    pub in_reply_to_id: Option<u64>,
+    pub in_reply_to_id: Option<String>,
     /// Ids of media attachments being attached to the status.
     #[serde(skip_serializing_if="Option::is_none")]
     pub media_ids: Option<Vec<u64>>,
