@@ -19,7 +19,7 @@
 //!     website: None,
 //! };
 //!
-//! let mut registration = Registration::new("https://mastodon.social")?;
+//! let mut registration = Registration::new("https://mastodon.social");
 //! registration.register(app)?;
 //! let url = registration.authorise()?;
 //! // Here you now need to open the url in the browser
@@ -33,6 +33,7 @@
 //! ```
 
 #![cfg_attr(test, deny(warnings))]
+#![cfg_attr(test, deny(missing_docs))]
 
 
 
@@ -71,19 +72,22 @@ pub mod entities;
 /// Registering your app.
 pub mod registration;
 
-use std::ops;
+use std::borrow::Cow;
+use std::error::Error as StdError;
+use std::fmt;
 use std::io::Error as IoError;
+use std::ops;
 
 use json::Error as SerdeError;
 use reqwest::Error as HttpError;
-use reqwest::Client;
-use reqwest::header::{Bearer, Headers};
-
+use reqwest::{Client, StatusCode};
+use reqwest::header::{Authorization, Bearer, Headers};
 
 use entities::prelude::*;
 pub use status_builder::StatusBuilder;
 
 pub use registration::Registration;
+/// Convience type over `std::result::Result` with `Error` as the error type.
 pub type Result<T> = std::result::Result<T, Error>;
 
 macro_rules! methods {
@@ -113,6 +117,49 @@ macro_rules! methods {
 
 macro_rules! route {
 
+    ((post multipart ($($param:ident: $typ:ty,)*)) $name:ident: $url:expr => $ret:ty, $($rest:tt)*) => {
+        /// Equivalent to `/api/v1/
+        #[doc = $url]
+        /// `
+        ///
+        #[doc = "# Errors"]
+        /// If `access_token` is not set.
+        pub fn $name(&self, $($param: $typ,)*) -> Result<$ret> {
+            use std::io::Read;
+            use reqwest::multipart::Form;
+
+            let form_data = Form::new()
+            $(
+                .file(stringify!($param), $param.as_ref())?
+            )*;
+
+            let mut response = self.client.post(&self.route(concat!("/api/v1/", $url)))
+                .headers(self.headers.clone())
+                .multipart(form_data)
+                .send()?;
+
+            let status = response.status().clone();
+
+            if status.is_client_error() {
+                return Err(Error::Client(status));
+            } else if status.is_server_error() {
+                return Err(Error::Server(status));
+            }
+
+            let mut vec = Vec::new();
+
+            response.read_to_end(&mut vec)?;
+
+
+            match json::from_slice::<$ret>(&vec) {
+                Ok(res) => Ok(res),
+                Err(_) => Err(Error::Api(json::from_slice(&vec)?)),
+            }
+        }
+
+        route!{$($rest)*}
+    };
+
     ((post ($($param:ident: $typ:ty,)*)) $name:ident: $url:expr => $ret:ty, $($rest:tt)*) => {
         /// Equivalent to `/api/v1/
         #[doc = $url]
@@ -126,24 +173,32 @@ macro_rules! route {
             let form_data = json!({
                 $(
                     stringify!($param): $param,
-                    )*
+                )*
             });
 
             let mut response = self.client.post(&self.route(concat!("/api/v1/", $url)))
                 .headers(self.headers.clone())
-                .form(&form_data)
+                .json(&form_data)
                 .send()?;
+
+            let status = response.status().clone();
+
+            if status.is_client_error() {
+                return Err(Error::Client(status));
+            } else if status.is_server_error() {
+                return Err(Error::Server(status));
+            }
 
             let mut vec = Vec::new();
 
             response.read_to_end(&mut vec)?;
 
-            if let Ok(t) = json::from_slice(&vec) {
-                Ok(t)
-            } else {
-                Err(Error::Api(json::from_slice(&vec)?))
+            match json::from_slice(&vec) {
+                Ok(res) => Ok(res),
+                Err(_) => Err(Error::Api(json::from_slice(&vec)?)),
             }
         }
+
         route!{$($rest)*}
     };
 
@@ -182,6 +237,7 @@ macro_rules! route_id {
 
 }
 
+/// Your mastodon application client, handles all requests to and from Mastodon.
 #[derive(Clone, Debug)]
 pub struct Mastodon {
     client: Client,
@@ -194,29 +250,75 @@ pub struct Mastodon {
 /// to authenticate on every run.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Data {
-    pub base: String,
-    pub client_id: String,
-    pub client_secret: String,
-    pub redirect: String,
-    pub token: String,
+    /// Base url of instance eg. `https://mastodon.social`.
+    pub base: Cow<'static, str>,
+    /// The client's id given by the instance.
+    pub client_id: Cow<'static, str>,
+    /// The client's secret given by the instance.
+    pub client_secret: Cow<'static, str>,
+    /// Url to redirect back to your application from the instance signup.
+    pub redirect: Cow<'static, str>,
+    /// The client's access token.
+    pub token: Cow<'static, str>,
 }
 
+/// enum of possible errors encountered using the mastodon API.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Error {
+    /// Error from the Mastodon API. This typically means something went
+    /// wrong with your authentication or data.
     Api(ApiError),
+    /// Error deserialising to json. Typically represents a breaking change in
+    /// the Mastodon API
     #[serde(skip_deserializing)]
     Serde(SerdeError),
+    /// Error encountered in the HTTP backend while requesting a route.
     #[serde(skip_deserializing)]
     Http(HttpError),
+    /// Wrapper around the `std::io::Error` struct.
     #[serde(skip_deserializing)]
     Io(IoError),
+    /// Missing Client Id.
     #[serde(skip_deserializing)]
     ClientIdRequired,
+    /// Missing Client Secret.
     #[serde(skip_deserializing)]
     ClientSecretRequired,
+    /// Missing Access Token.
     #[serde(skip_deserializing)]
     AccessTokenRequired,
+    /// Generic client error.
+    #[serde(skip_deserializing)]
+    Client(StatusCode),
+    /// Generic server error.
+    #[serde(skip_deserializing)]
+    Server(StatusCode),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl StdError for Error {
+    fn description(&self) -> &str {
+        match *self {
+            Error::Api(ref e) => {
+                e.error_description.as_ref().unwrap_or(&e.error)
+            },
+            Error::Serde(ref e) => e.description(),
+            Error::Http(ref e) => e.description(),
+            Error::Io(ref e) => e.description(),
+            Error::Client(ref status) | Error::Server(ref status) => {
+                status.canonical_reason().unwrap_or("Unknown Status code")
+            },
+            Error::ClientIdRequired => "ClientIdRequired",
+            Error::ClientSecretRequired => "ClientSecretRequired",
+            Error::AccessTokenRequired => "AccessTokenRequired",
+        }
+    }
 }
 
 /// Error returned from the Mastodon API.
@@ -229,46 +331,44 @@ pub struct ApiError {
 }
 
 impl Mastodon {
-    fn from_registration(
-        base: String,
-        client_id: String,
-        client_secret: String,
-        redirect: String,
-        token: String,
-        client: Client,
-    ) -> Self {
-        let data = Data {
-            base: base,
-            client_id: client_id,
-            client_secret: client_secret,
-            redirect: redirect,
-            token: token,
-        };
+    fn from_registration<I>(base: I,
+                         client_id: I,
+                         client_secret: I,
+                         redirect: I,
+                         token: I,
+                         client: Client)
+        -> Self
+        where I: Into<Cow<'static, str>>
+        {
+            let data = Data {
+                base: base.into(),
+                client_id: client_id.into(),
+                client_secret: client_secret.into(),
+                redirect: redirect.into(),
+                token: token.into(),
 
-        let mut headers = reqwest::header::Headers::new();
-        headers.set(reqwest::header::Authorization(
-            Bearer { token: data.token.clone() },
-        ));
+            };
 
-        Mastodon {
-            client: client,
-            headers: headers,
-            data: data,
+            let mut headers = Headers::new();
+            headers.set(Authorization(Bearer { token: (*data.token).to_owned() }));
+
+            Mastodon {
+                client: client,
+                headers: headers,
+                data: data,
+            }
         }
     }
 
     /// Creates a mastodon instance from the data struct.
-    pub fn from_data(data: Data) -> Result<Self> {
-        let mut headers = reqwest::header::Headers::new();
-        headers.set(reqwest::header::Authorization(
-            Bearer { token: data.token.clone() },
-        ));
-
-        Ok(Mastodon {
+    pub fn from_data(data: Data) -> Self {
+        let mut headers = Headers::new();
+        headers.set(Authorization(Bearer { token: (*data.token).to_owned() }));
+        Mastodon {
             client: Client::new(),
             headers: headers,
             data: data,
-        })
+        }
     }
 
     route! {
@@ -281,9 +381,9 @@ impl Mastodon {
         (get) get_home_timeline: "timelines/home" => Vec<Status>,
         (post (id: u64,)) allow_follow_request: "accounts/follow_requests/authorize" => Empty,
         (post (id: u64,)) reject_follow_request: "accounts/follow_requests/reject" => Empty,
-        (post (uri: String,)) follows: "follows" => Account,
+        (post (uri: Cow<'static, str>,)) follows: "follows" => Account,
         (post) clear_notifications: "notifications/clear" => Empty,
-        (post (file: Vec<u8>,)) media: "media" => Attachment,
+        (post multipart (file: Cow<'static, str>,)) media: "media" => Attachment,
         (post (account_id: u64, status_ids: Vec<u64>, comment: String,)) report:
             "reports" => Report,
         (post (q: String, resolve: bool,)) search: "search" => SearchResult,
@@ -312,6 +412,7 @@ impl Mastodon {
         (delete) delete_status: "statuses/{}" => Empty,
     }
 
+    /// Post a new status to the account.
     pub fn new_status(&self, status: StatusBuilder) -> Result<Status> {
         use std::io::Read;
 
@@ -331,6 +432,7 @@ impl Mastodon {
         }
     }
 
+    /// Get the federated timeline for the instance.
     pub fn get_public_timeline(&self, local: bool) -> Result<Vec<Status>> {
         let mut url = self.route("/api/v1/timelines/public");
 
@@ -341,6 +443,8 @@ impl Mastodon {
         self.get(url)
     }
 
+    /// Get timeline filtered by a hashtag(eg. `#coffee`) either locally or
+    /// federated.
     pub fn get_tagged_timeline(&self, hashtag: String, local: bool) -> Result<Vec<Status>> {
         let mut url = self.route("/api/v1/timelines/tag/");
         url += &hashtag;
@@ -352,13 +456,16 @@ impl Mastodon {
         self.get(url)
     }
 
-    pub fn statuses(
-        &self,
-        id: u64,
-        only_media: bool,
-        exclude_replies: bool,
-    ) -> Result<Vec<Status>> {
-        let mut url = format!("{}/api/v1/accounts/{}/statuses", self.base, id);
+    /// Get statuses of a single account by id. Optionally only with pictures
+    /// and or excluding replies.
+    pub fn statuses(&self, id: u64, only_media: bool, exclude_replies: bool)
+        -> Result<Vec<Status>>
+        {
+            let mut url = format!("{}/api/v1/accounts/{}/statuses", self.base, id);
+
+            if only_media {
+                url += "?only_media=1";
+            }
 
         if only_media {
             url += "?only_media=1";
@@ -374,6 +481,8 @@ impl Mastodon {
     }
 
 
+    /// Returns the client account's relationship to a list of other accounts.
+    /// Such as whether they follow them or vice versa.
     pub fn relationships(&self, ids: &[u64]) -> Result<Vec<Relationship>> {
         let mut url = self.route("/api/v1/accounts/relationships?");
 
@@ -392,11 +501,15 @@ impl Mastodon {
         self.get(url)
     }
 
+    /// Search for accounts by their name.
+    /// Will lookup an account remotely if the search term is in the
+    /// `username@domain` format and not yet in the database.
     // TODO: Add a limit fn
     pub fn search_accounts(&self, query: &str) -> Result<Vec<Account>> {
         self.get(format!("{}/api/v1/accounts/search?q={}", self.base, query))
     }
 
+    /// Returns the current Instance.
     pub fn instance(&self) -> Result<Instance> {
         self.get(self.route("/api/v1/instance"))
     }
@@ -404,7 +517,7 @@ impl Mastodon {
     methods![get, post, delete,];
 
     fn route(&self, url: &str) -> String {
-        let mut s = self.base.clone();
+        let mut s = (*self.base).to_owned();
         s += url;
         s
     }

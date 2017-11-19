@@ -15,6 +15,8 @@ pub mod ws;
 pub struct Empty {}
 
 pub mod prelude {
+    //! The purpose of this module is to alleviate imports of many common structs
+    //! by adding a glob import to the top of mastodon heavy modules:
     pub use super::Empty;
     pub use super::account::Account;
     pub use super::attachment::{Attachment, MediaType};
