@@ -51,11 +51,12 @@ extern crate url;
 use std::str;
 
 extern crate websocket;
-use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
+
+use std::{thread, time};
 
 // #[macro_use]
 // extern crate hyper;
@@ -524,6 +525,13 @@ impl Mastodon {
     /// streaming user timeline
     pub fn get_user_streaming(&self) -> (Receiver<Status>, Receiver<Notification>) {
 
+
+        let (status_tx, status_rx) = channel();
+        let (notification_tx, notification_rx) = channel();
+
+        let status_tx_1 = status_tx.clone();
+        let notification_tx_1 = notification_tx.clone();
+
         let domain = url::Url::parse(&self.data.base).expect("url");
         let url = format!(
             "wss://{}/api/v1/streaming/?access_token={}&stream=user",
@@ -538,27 +546,18 @@ impl Mastodon {
         ));
         headers.set(websocket::header::WebSocketKey::new());
         // headers.set(websocket::header::WebSocketVersion("13".to_owned()));
-
-        let mut client = ClientBuilder::new(&url)
-            .expect("client")
-            .add_protocol("rust-websocket")
-            .custom_headers(&headers)
-            .connect_secure(None)
-            .expect("rust-websocket");
-
         // let (mut receiver, mut sender) = client.split().unwrap();
 
-
-
-        let (status_tx, status_rx) = channel();
-        let (notification_tx, notification_rx) = channel();
-
-        let status_tx_1 = status_tx.clone();
-        let notification_tx_1 = notification_tx.clone();
-
-        thread::spawn(move || {
+        thread::spawn( move || {
 
             loop {
+
+                let mut client = ClientBuilder::new(&url)
+                    .expect("client")
+                    .add_protocol("rust-websocket")
+                    .custom_headers(&headers)
+                    .connect_secure(None)
+                    .expect("rust-websocket");
 
                 let message  = client.incoming_messages().next().expect("next");
 
@@ -634,6 +633,8 @@ impl Mastodon {
                 };
             }
             println!("break out incoming messages loop");
+            println!("wait sleep 10sec");
+            thread::sleep(time::Duration::from_millis(10));
         });
 
         (status_rx, notification_rx)
