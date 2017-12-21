@@ -634,7 +634,7 @@ impl Mastodon {
             }
             println!("break out incoming messages loop");
             println!("wait sleep 10sec");
-            thread::sleep(time::Duration::from_millis(10));
+            thread::sleep(time::Duration::from_millis(10000));
         });
 
         (status_rx, notification_rx)
