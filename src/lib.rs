@@ -56,7 +56,8 @@ use std::sync::mpsc::Receiver;
 use websocket::OwnedMessage;
 use websocket::client::ClientBuilder;
 
-use std::{thread, time};
+use std::{thread, time, panic};
+use std::panic::AssertUnwindSafe;
 
 // #[macro_use]
 // extern crate hyper;
@@ -552,85 +553,88 @@ impl Mastodon {
 
             loop {
 
-                let mut client = ClientBuilder::new(&url)
-                    .expect("client")
-                    .add_protocol("rust-websocket")
-                    .custom_headers(&headers)
-                    .connect_secure(None)
-                    .expect("rust-websocket");
+                panic::catch_unwind(AssertUnwindSafe(|| {
 
-                let message  = client.incoming_messages().next().expect("next");
+                     let mut client = ClientBuilder::new(&url)
+                         .expect("client")
+                         .add_protocol("rust-websocket")
+                         .custom_headers(&headers)
+                         .connect_secure(None)
+                         .expect("rust-websocket");
 
-                let message_opt: Option<OwnedMessage> = match message {
-                    Ok(m) => Some(m),
-                    Err(e) => {
-                        println!("error: {:?}", e);
-                        break;
-                    }
-                };
+                     let message  = client.incoming_messages().next().expect("next");
 
-                match message_opt {
-                    Some(OwnedMessage::Close(_)) => {
-                        break;
-                    }
-                    Some(OwnedMessage::Ping(data)) => {
-                        println!("ping: {:?}", data);
-                        let message = OwnedMessage::Pong(data);
-                        client.send_message(&message).unwrap();
-                    }
-                    Some(OwnedMessage::Text(text)) => {
+                     let message_opt: Option<OwnedMessage> = match message {
+                         Ok(m) => Some(m),
+                         Err(e) => {
+                             println!("error: {:?}", e);
+                             panic!("errr");
+                         }
+                     };
 
-                        let text_opt: Option<String> = Some(text);
+                     match message_opt {
+                         Some(OwnedMessage::Close(_)) => {
+                             panic!("err");
+                         }
+                         Some(OwnedMessage::Ping(data)) => {
+                             println!("ping: {:?}", data);
+                             let message = OwnedMessage::Pong(data);
+                             client.send_message(&message).unwrap();
+                         }
+                         Some(OwnedMessage::Text(text)) => {
 
-                        match text_opt {
-                            Some(text) => {
+                             let text_opt: Option<String> = Some(text);
 
-                                println!("text => {}", text);
+                             match text_opt {
+                                 Some(text) => {
 
-                                let ws_event_opt: json::Result<Event> = json::from_str(&text);
-                                match ws_event_opt {
-                                    Ok(ref event) if event.event == "update" => {
+                                     println!("text => {}", text);
 
-                                        println!("payload => {}", event.payload);
+                                     let ws_event_opt: json::Result<Event> = json::from_str(&text);
+                                     match ws_event_opt {
+                                         Ok(ref event) if event.event == "update" => {
 
-                                        let status_opt: json::Result<Status> = json::from_str(&event.payload);
-                                        match status_opt {
-                                            Ok(status) => {
-                                                let _ = status_tx_1.send(status);
-                                            }
-                                            Err(e) => {
-                                                println!("error: status parse error => {}", e);
-                                            }
-                                        };
-                                    }
-                                    Ok(ref event) if event.event == "notification" => {
-                                        let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
-                                        match notification_opt {
-                                            Ok(notification) => {
-                                                let _ = notification_tx_1.send(notification);
-                                            }
-                                            Err(e) => {
-                                                println!(
-                                                    "error: notification parse error => {}",
-                                                    e
-                                                );
-                                            }
-                                        };
-                                    }
-                                    Ok(_) => {
-                                        println!("error: unknown payload {:?}", ws_event_opt);
-                                    }
-                                    Err(e) => {
-                                        println!("error: status parse error => {}", e);
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    None => {}
-                    _ => println!("Receive Loop: {:?}", message_opt),
-                };
+                                             println!("payload => {}", event.payload);
+
+                                             let status_opt: json::Result<Status> = json::from_str(&event.payload);
+                                             match status_opt {
+                                                 Ok(status) => {
+                                                     let _ = status_tx_1.send(status);
+                                                 }
+                                                 Err(e) => {
+                                                     println!("error: status parse error => {}", e);
+                                                 }
+                                             };
+                                         }
+                                         Ok(ref event) if event.event == "notification" => {
+                                             let notification_opt: json::Result<Notification> = json::from_str(&event.payload);
+                                             match notification_opt {
+                                                 Ok(notification) => {
+                                                     let _ = notification_tx_1.send(notification);
+                                                 }
+                                                 Err(e) => {
+                                                     println!(
+                                                         "error: notification parse error => {}",
+                                                         e
+                                                     );
+                                                 }
+                                             };
+                                         }
+                                         Ok(_) => {
+                                             println!("error: unknown payload {:?}", ws_event_opt);
+                                         }
+                                         Err(e) => {
+                                             println!("error: status parse error => {}", e);
+                                         }
+                                     }
+                                 }
+                                 _ => {}
+                             }
+                         }
+                         None => {}
+                         _ => println!("Receive Loop: {:?}", message_opt),
+                     };
+                }));
             }
             println!("break out incoming messages loop");
             println!("wait sleep 10sec");
